@@ -1,0 +1,24 @@
+{
+  "name": "catlabinteractive/laravel-revisionable",
+  "description": "Simple library to handle revisionable laravel models",
+  "type": "library",
+  "require": {
+    "php": ">=7.0.0",
+    "catlabinteractive/base": "^0.1"
+  },
+  "require-dev" : {
+    "phpunit/phpunit": "*"
+  },
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Thijs Van der Schaeghe",
+      "email": "info@catlab.be"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "CatLab\\Revisionable\\": "src/CatLab/Revisionable"
+    }
+  }
+}

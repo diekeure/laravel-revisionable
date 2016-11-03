@@ -364,6 +364,9 @@ abstract class Revisionable extends Model
                     $fk = $relationshipQueryBuilder->getPlainForeignKey();
                     $child->$fk = $this->id;
 
+                    // Force relations to reload (in case they exist already)
+                    $child->relations = [];
+
                     if ($child instanceof Revisionable) {
                         $changed = $child->saveRevisionedRecursively($currentRevision, $author) || $changed;
                     } elseif ($child instanceof Model) {

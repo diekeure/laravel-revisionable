@@ -7,11 +7,14 @@ use CatLab\Revisionable\laravel\Exceptions;
 use CatLab\Revisionable\Laravel\Exceptions\InvalidAttributeTypeException;
 use CatLab\Revisionable\Laravel\Exceptions\InvalidChildTypeExceptions;
 use CatLab\Revisionable\Laravel\Exceptions\SaveCalledException;
+use DB;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOneOrMany;
 use Illuminate\Foundation\Auth\User;
+use Illuminate\Support\Str;
+use Mockery\Matcher\Closure;
 
 /**
  * Class Revisionable
@@ -20,6 +23,8 @@ use Illuminate\Foundation\Auth\User;
 abstract class Revisionable extends Model
 {
     const REV_LATEST = 'latest';
+
+    const EAGER_LOAD_CHILDREN_PREFIX = 'revisionedChildren:';
 
     /**
      * @var string[]
@@ -40,6 +45,11 @@ abstract class Revisionable extends Model
      * @var
      */
     private $alteredChildren = [];
+
+    /**
+     * @var string
+     */
+    private $attributesTable;
 
     /**
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
@@ -76,21 +86,10 @@ abstract class Revisionable extends Model
             $revisionId = 0;
         }
 
-        if ($revisionId === self::REV_LATEST) {
-            $attributes = $this
-                ->attributes()
-                ->orderBy('id', 'desc')
-                ->first();
-        } else {
-            if (isset($this->revisionTags[$revisionId])) {
-                $revisionId = $this->revisionTags[$revisionId];
-            }
+        $attributes = $this->attributes();
+        $this->addAttributeRevisionWhere($attributes, $revisionId);
 
-            $attributes = $this
-                ->attributes()
-                ->where('revision', '<=', $revisionId)
-                ->orderBy('id', 'desc')->first();
-        }
+        $attributes = $attributes->first();
 
         if (!isset($attributes)) {
             $model = $this->attributes()->getModel();
@@ -103,6 +102,14 @@ abstract class Revisionable extends Model
         }
 
         return $attributes;
+    }
+
+    /**
+     * @return string
+     */
+    protected function getSortKeyName()
+    {
+        return $this->attributes()->getRelated()->getTable().'.id';
     }
 
     /**
@@ -120,11 +127,16 @@ abstract class Revisionable extends Model
         }
 
         if (!isset($this->childrenCache[$revisionId][$childProperty])) {
-            /** @var HasMany $children */
-            $children = call_user_func([ $this, $childProperty ]);
-            $this->processRevisionedChildrenQueryBuilder($childProperty, $children, $revisionId);
 
-            $this->childrenCache[$revisionId][$childProperty] = $children;
+            if ($this->relationLoaded($childProperty)) {
+                $relation = $this->getRelation($childProperty);
+            } else {
+                /** @var HasMany $relation */
+                $relation = call_user_func([ $this, $childProperty ]);
+                $this->processRevisionedChildrenQueryBuilder($childProperty, $relation, $revisionId);
+            }
+
+            $this->childrenCache[$revisionId][$childProperty] = $relation;
         }
         return $this->childrenCache[$revisionId][$childProperty];
     }
@@ -215,6 +227,107 @@ abstract class Revisionable extends Model
                 $query->whereNull('removed_at_revision')
                     ->orWhere('removed_at_revision', '>', $revisionId);
             });
+
+        $related = $children->getRelated();
+        if ($related instanceof Revisionable) {
+            $this->preloadAttributes($related, $children, $revisionId);
+
+            // Also check for revisionable children
+            $eagerLoads = [];
+            foreach ($children->getEagerLoads() as $k => $v) {
+                /*
+                 * Is this a "child property" eager loading?
+                 * Return a closure that only returns the valid children.
+                 */
+                if (starts_with($k, self::EAGER_LOAD_CHILDREN_PREFIX)) {
+                    $property = Str::substr($k, Str::length(self::EAGER_LOAD_CHILDREN_PREFIX));
+                    $eagerLoads[$property] = $related->eagerLoadChildren($property, $revisionId, $v);
+                } else {
+                    $eagerLoads[$k] = $v;
+                }
+            }
+            $children->setEagerLoads($eagerLoads);
+
+            // Eager load parent relationship
+            $parentAttribute = Str::snake(class_basename($this));
+            $children->with($parentAttribute);
+        }
+    }
+
+    /**
+     * @param $revisionId
+     * @return \Closure
+     */
+    protected function eagerLoadChildren($attribute, $revisionId, \Closure $closure)
+    {
+        $relation = call_user_func([ $this, $attribute ]);
+
+        return function($builder) use ($relation, $attribute, $revisionId, $closure) {
+            $builder->select([ '*', DB::raw(DB::getPdo()->quote($revisionId) . ' AS revisionabled_fetched_revision' )]);
+            $this->processRevisionedChildrenQueryBuilder($relation, $builder, $revisionId);
+        };
+    }
+
+    /**
+     * @param Revisionable $model
+     * @param $builder
+     * @param $revisionId
+     */
+    protected static function preloadAttributes(Revisionable $model, $builder, $revisionId)
+    {
+        $attributeTable = $model->attributes()->getRelated()->getTable();
+        $tableAlias = 'preloadAttributeGroupmax';
+
+        $builder->with([
+            'attributes' => function($query) use ($model, $revisionId, $attributeTable, $tableAlias)
+            {
+                $query->select([
+                    '*',
+                    DB::raw(DB::getPdo()->quote($revisionId) . ' AS revisionabled_fetched_revision')
+                ]);
+
+                $query->where($attributeTable . '.revision',
+                    function($query) use ($attributeTable, $tableAlias, $model, $revisionId) {
+
+                        $query->select(\DB::raw('MAX(revision)'));
+                        $query->from($attributeTable . ' AS ' . $tableAlias);
+                        $query->where($tableAlias . '.id', '=', DB::raw($attributeTable . '.id'));
+                        $query->groupBy($tableAlias . '.id');
+
+                        $model->addAttributeRevisionWhere($query, $revisionId);
+
+                });
+
+                /**
+                 * @TODO BEFORE COMMIT
+                 * Add groupwise max!
+                 * http://jan.kneschke.de/projects/mysql/groupwise-max/
+                 */
+            }
+        ]);
+    }
+
+    /**
+     * Add conditions to fetch attributes
+     * @param $attributes
+     * @param $revisionId
+     * @return mixed
+     */
+    protected function addAttributeRevisionWhere($attributes, $revisionId)
+    {
+        if ($revisionId === self::REV_LATEST) {
+            $attributes->orderBy($this->getSortKeyName(), 'desc');
+        } else {
+            if (isset($this->revisionTags[$revisionId])) {
+                $revisionId = $this->revisionTags[$revisionId];
+            }
+
+            $attributes
+                ->where('revision', '<=', $revisionId)
+                ->orderBy($this->getSortKeyName(), 'desc');
+        }
+
+        return $attributes;
     }
 
     /**
@@ -270,6 +383,55 @@ abstract class Revisionable extends Model
     public function getRevision()
     {
         return $this->getRootRevisionable()->revision;
+    }
+
+    /**
+     * @param string $relation
+     * @param mixed $value
+     * @return void
+     */
+    public function setRelation($relation, $value)
+    {
+        parent::setRelation($relation, $value);
+
+        if (
+            $value instanceof Model ||
+            count($value) == 0
+        ) {
+            return;
+        }
+
+        if ($relation == 'attributes') {
+            foreach ($value as $v) {
+                if (isset($v->revisionabled_fetched_revision)) {
+                    $this->attributeCache[$v->revisionabled_fetched_revision] = $v;
+                }
+            }
+            return;
+        }
+
+        $revision = isset($value[0]->revisionabled_fetched_revision) ?
+            $value[0]->revisionabled_fetched_revision : null;
+
+        if ($revision) {
+            if (!isset($this->childrenCache[$revision])) {
+                $this->childrenCache[$revision] = [];
+            }
+
+            $this->childrenCache[$revision][$relation] = $value;
+        }
+    }
+
+    /**
+     * @param array $relations
+     * @return void
+     */
+    public function setRelations(array $relations)
+    {
+        $this->relations = [];
+        foreach ($relations as $k => $v) {
+            $this->setRelation($k, $v);
+        }
     }
 
     /**

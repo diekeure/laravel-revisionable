@@ -296,13 +296,7 @@ abstract class Revisionable extends Model
 
                         $model->addAttributeRevisionWhere($query, $revisionId);
 
-                });
-
-                /**
-                 * @TODO BEFORE COMMIT
-                 * Add groupwise max!
-                 * http://jan.kneschke.de/projects/mysql/groupwise-max/
-                 */
+                    });
             }
         ]);
     }
@@ -405,6 +399,7 @@ abstract class Revisionable extends Model
             foreach ($value as $v) {
                 if (isset($v->revisionabled_fetched_revision)) {
                     $this->attributeCache[$v->revisionabled_fetched_revision] = $v;
+                    unset($v->revisionabled_fetched_revision);
                 }
             }
             return;
@@ -419,6 +414,10 @@ abstract class Revisionable extends Model
             }
 
             $this->childrenCache[$revision][$relation] = $value;
+
+            foreach ($value as $v) {
+                unset($v->revisionabled_fetched_revision);
+            }
         }
     }
 
@@ -471,7 +470,7 @@ abstract class Revisionable extends Model
         if (! ($oldAttributes instanceof RevisionableAttributes)) {
             throw InvalidAttributeTypeException::create('save', $oldAttributes);
         }
-        
+
         $dirtyAttributeFields = $oldAttributes->getDirty();
 
         $attributeFk = $this->attributes()->getPlainForeignKey();

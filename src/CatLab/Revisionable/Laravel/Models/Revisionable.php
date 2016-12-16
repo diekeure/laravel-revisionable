@@ -491,8 +491,9 @@ abstract class Revisionable extends Model
             // (should only be triggered if a previous script crashed)
             $latestRevision = $this->getRevisionedAttributes(self::REV_LATEST);
             if ($latestRevision) {
-                if ($latestRevision->revision && $latestRevision->revision > $nextRevision) {
+                if ($latestRevision->revision && $latestRevision->revision >= $nextRevision) {
                     $nextRevision = $latestRevision->revision + 1;
+                    $this->setRevision($nextRevision);
                 }
             }
 

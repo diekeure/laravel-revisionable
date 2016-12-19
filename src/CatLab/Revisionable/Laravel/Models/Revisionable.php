@@ -163,6 +163,14 @@ abstract class Revisionable extends Model
     }
 
     /**
+     *
+     */
+    public function clearAttributeCache()
+    {
+        $this->attributeCache = [];
+    }
+
+    /**
      * @param $children
      * @param $childProperty
      * @param $revisionId
@@ -540,6 +548,7 @@ abstract class Revisionable extends Model
             }
         }
 
+        $this->clearAttributeCache();
         $this->clearChildrenCache();
 
         if ($this->getRevision() !== $nextRevision) {

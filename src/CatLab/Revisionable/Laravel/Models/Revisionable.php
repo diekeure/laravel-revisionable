@@ -454,7 +454,22 @@ abstract class Revisionable extends Model
      */
     private function setRevisionAndSave($revision)
     {
-        $this->revision = $revision;
+        $this->setAttributesAndSave([
+            'revision' => $revision
+        ]);
+    }
+
+    /**
+     * Helper method to allow you to set "core attributes" without
+     * hitting the "cannot save" restriction.
+     * @param array $attributes
+     */
+    public function setAttributesAndSave($attributes)
+    {
+        foreach ($attributes as $k => $v) {
+            $this->$k = $v;
+        }
+
         parent::save();
     }
 

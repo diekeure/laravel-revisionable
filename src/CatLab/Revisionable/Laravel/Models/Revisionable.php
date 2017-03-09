@@ -97,7 +97,7 @@ abstract class Revisionable extends Model
 
             $relationship = $this->attributes();
 
-            $fk = $relationship->getPlainForeignKey();
+            $fk = $relationship->getForeignKeyName();
             $attributes->$fk = $this->id;
         }
 
@@ -496,7 +496,7 @@ abstract class Revisionable extends Model
 
         $dirtyAttributeFields = $oldAttributes->getDirty();
 
-        $attributeFk = $this->attributes()->getPlainForeignKey();
+        $attributeFk = $this->attributes()->getForeignKeyName();
 
         if (
             !$oldAttributes->exists() ||
@@ -546,7 +546,7 @@ abstract class Revisionable extends Model
                     /** @var HasMany $relationshipQueryBuilder */
                     $relationshipQueryBuilder = call_user_func([ $this, $attributeName ]);
 
-                    $fk = $relationshipQueryBuilder->getPlainForeignKey();
+                    $fk = $relationshipQueryBuilder->getForeignKeyName();
                     $child->$fk = $this->id;
 
                     // Force relations to reload (in case they exist already)

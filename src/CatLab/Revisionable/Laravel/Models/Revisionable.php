@@ -138,7 +138,7 @@ abstract class Revisionable extends Model
 
             $this->childrenCache[$revisionId][$childProperty] = $relation;
         }
-        return $this->childrenCache[$revisionId][$childProperty];
+        return clone $this->childrenCache[$revisionId][$childProperty];
     }
 
     /**

@@ -23,6 +23,7 @@ use Mockery\Matcher\Closure;
 abstract class Revisionable extends Model
 {
     const REV_LATEST = 'latest';
+    const REV_PUBLISHED = 'published';
 
     const EAGER_LOAD_CHILDREN_PREFIX = 'revisionedChildren:';
 
@@ -471,6 +472,14 @@ abstract class Revisionable extends Model
         }
 
         parent::save();
+    }
+
+    /**
+     * @return RevisionableAttributes
+     */
+    public function getLatest()
+    {
+        return $this->getRevisionedAttributes(self::REV_LATEST);
     }
 
     /**

@@ -178,7 +178,7 @@ abstract class Revisionable extends Model
      */
     public function addRevisionedChildren($children, $childProperty, $revisionId)
     {
-        if (!isset($this->alteredChildren)) {
+        if (!isset($this->alteredChildren[$childProperty])) {
             $this->alteredChildren[$childProperty] = [];
         }
 
@@ -195,7 +195,7 @@ abstract class Revisionable extends Model
      */
     public function editRevisionedChildren($children, $childProperty, $revisionId)
     {
-        if (!isset($this->alteredChildren)) {
+        if (!isset($this->alteredChildren[$childProperty])) {
             $this->alteredChildren[$childProperty] = [];
         }
 
@@ -211,7 +211,7 @@ abstract class Revisionable extends Model
      */
     public function removeRevisionedChildren($children, $childProperty, $revisionId)
     {
-        if (!isset($this->alteredChildren)) {
+        if (!isset($this->alteredChildren[$childProperty])) {
             $this->alteredChildren[$childProperty] = [];
         }
 
@@ -480,6 +480,29 @@ abstract class Revisionable extends Model
     public function getLatest()
     {
         return $this->getRevisionedAttributes(self::REV_LATEST);
+    }
+
+    /**
+     * Check if there are any altered children.
+     * @param string $relation Optionally provide relation name to only check for altered children of this relation
+     * @return bool
+     */
+    public function hasAlteredChildren($relation = null)
+    {
+        if (!isset($this->alteredChildren)) {
+            return false;
+        }
+
+        if (count($this->alteredChildren) == 0) {
+            return false;
+        }
+
+        if ($relation) {
+            return isset($this->alteredChildren[$relation])
+                && count($this->alteredChildren[$relation]) > 0;
+        } else {
+            return true;
+        }
     }
 
     /**

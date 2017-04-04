@@ -539,7 +539,7 @@ abstract class Revisionable extends Model
 
             $newAttributes->save();
 
-            $changed = $changed || true;
+            $changed = true;
         }
 
         // Check for children
@@ -565,6 +565,7 @@ abstract class Revisionable extends Model
                         $changed = $child->saveRevisionedRecursively($currentRevision, $author) || $changed;
                     } elseif ($child instanceof Model) {
                         $child->save();
+                        $changed = true;
                     } else {
                         throw InvalidChildTypeExceptions::create('save', $child);
                     }

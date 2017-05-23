@@ -53,6 +53,11 @@ abstract class Revisionable extends Model
     private $attributesTable;
 
     /**
+     * @var Revisionable
+     */
+    private $revisionableParent;
+
+    /**
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
     abstract function attributes() : HasMany;
@@ -352,7 +357,7 @@ abstract class Revisionable extends Model
      */
     public function saveRevision($currentRevision, User $author = null)
     {
-        $this->saveRevisionedRecursively($currentRevision, $author);
+        return $this->saveRevisionedRecursively($currentRevision, $author);
     }
 
     /**
@@ -511,7 +516,7 @@ abstract class Revisionable extends Model
      * @return bool
      * @throws InvalidChildTypeExceptions
      */
-    private function saveRevisionedRecursively(int $currentRevision, User $author = null)
+    protected function saveRevisionedRecursively(int $currentRevision, User $author = null)
     {
         $changed = false;
 
@@ -570,29 +575,7 @@ abstract class Revisionable extends Model
             $relationships = $this->alteredChildren;
 
             foreach ($relationships as $attributeName => $relationship) {
-                foreach ($relationship as $child) {
-                    /*
-                     * For new entities we need to set the foreign key.
-                     */
-
-                    /** @var HasMany $relationshipQueryBuilder */
-                    $relationshipQueryBuilder = call_user_func([ $this, $attributeName ]);
-
-                    $fk = $relationshipQueryBuilder->getForeignKeyName();
-                    $child->$fk = $this->id;
-
-                    // Force relations to reload (in case they exist already)
-                    $child->relations = [];
-
-                    if ($child instanceof Revisionable) {
-                        $changed = $child->saveRevisionedRecursively($currentRevision, $author) || $changed;
-                    } elseif ($child instanceof Model) {
-                        $child->save();
-                        $changed = true;
-                    } else {
-                        throw InvalidChildTypeExceptions::create('save', $child);
-                    }
-                }
+                $changed = $this->saveRevisionedChildren($attributeName, $currentRevision, $author) || $changed;
             }
         }
 
@@ -604,6 +587,70 @@ abstract class Revisionable extends Model
         }
 
         return $changed;
+    }
+
+    /**
+     * @param $attributeName
+     * @param $currentRevision
+     * @param User|null $author
+     * @return bool
+     * @throws InvalidChildTypeExceptions
+     */
+    protected function saveRevisionedChildren($attributeName, $currentRevision, User $author = null)
+    {
+        $relationship = $this->alteredChildren[$attributeName] ?? [];
+        $changed = false;
+
+        foreach ($relationship as $child) {
+            /*
+             * For new entities we need to set the foreign key.
+             */
+
+            /** @var HasMany $relationshipQueryBuilder */
+            $relationshipQueryBuilder = call_user_func([ $this, $attributeName ]);
+
+            $fk = $relationshipQueryBuilder->getForeignKeyName();
+            $child->$fk = $this->id;
+
+            // Force relations to reload (in case they exist already)
+            $child->relations = [];
+
+            // Set revisionable parent
+            $child->setRevisionableParent($this);
+
+            if ($child instanceof Revisionable) {
+                $changed = $child->saveRevisionedRecursively($currentRevision, $author) || $changed;
+            } elseif ($child instanceof Model) {
+                $changed = true;
+                $child->save();
+            } else {
+                throw InvalidChildTypeExceptions::create('save', $child);
+            }
+        }
+
+        unset($this->alteredChildren[$attributeName]);
+        $this->clearChildrenCache($attributeName, $currentRevision);
+
+        return $changed;
+    }
+
+    /**
+     * Only available during saveRevisionable
+     * @return Revisionable
+     */
+    protected function getRevisionableParent()
+    {
+        return $this->revisionableParent;
+    }
+
+    /**
+     * @param Revisionable $parent
+     * @return $this
+     */
+    protected function setRevisionableParent(Revisionable $parent)
+    {
+        $this->revisionableParent = $parent;
+        return $this;
     }
 
     /**

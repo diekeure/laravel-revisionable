@@ -605,10 +605,10 @@ abstract class Revisionable extends Model
             // Force relations to reload (in case they exist already)
             $child->relations = [];
 
-            // Set revisionable parent
-            $child->setRevisionableParent($this);
-
             if ($child instanceof Revisionable) {
+                // Set revisionable parent
+                $child->setRevisionableParent($this);
+
                 $changed = $child->saveRevisionedRecursively($currentRevision, $author) || $changed;
             } elseif ($child instanceof Model) {
                 $changed = true;

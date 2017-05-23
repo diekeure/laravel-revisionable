@@ -361,16 +361,6 @@ abstract class Revisionable extends Model
     }
 
     /**
-     * @param array $options
-     * @throws SaveCalledException
-     * @return void
-     */
-    public function save(array $options = [])
-    {
-        throw new SaveCalledException("Model::save() was called on a revisionable model. Please call saveRevision");
-    }
-
-    /**
      * @param int $currentRevision
      * @return $this
      */

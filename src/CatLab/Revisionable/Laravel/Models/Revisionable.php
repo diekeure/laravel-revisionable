@@ -588,10 +588,15 @@ abstract class Revisionable extends Model
      */
     protected function saveRevisionedChildren($attributeName, $currentRevision, User $author = null)
     {
-        $relationship = $this->alteredChildren[$attributeName] ?? [];
-        $changed = false;
+        $alteredChildren = $this->alteredChildren[$attributeName] ?? [];
 
-        foreach ($relationship as $child) {
+        // No count? Ignore.
+        if (count($alteredChildren) === 0) {
+            return false;
+        }
+
+        $changed = false;
+        foreach ($alteredChildren as $child) {
             /*
              * For new entities we need to set the foreign key.
              */

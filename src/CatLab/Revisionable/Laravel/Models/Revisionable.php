@@ -103,7 +103,7 @@ abstract class Revisionable extends Model
 
             $relationship = $this->attributes();
 
-            $fk = $this->getForeignKeyName($relationship);
+            $fk = self::getForeignKeyName($relationship);
             $attributes->$fk = $this->id;
         }
 
@@ -303,10 +303,12 @@ abstract class Revisionable extends Model
                 $query->where($attributeTable . '.revision',
                     function($query) use ($attributeTable, $tableAlias, $model, $revisionId) {
 
+                        $id = self::getForeignKeyName($model->attributes());
+
                         $query->select(\DB::raw('MAX(revision)'));
                         $query->from($attributeTable . ' AS ' . $tableAlias);
-                        $query->where($tableAlias . '.id', '=', DB::raw($attributeTable . '.id'));
-                        $query->groupBy($tableAlias . '.id');
+                        $query->where($tableAlias . '.' . $id, '=', DB::raw($attributeTable . '.' . $id));
+                        $query->groupBy($tableAlias . '.' . $id);
 
                         $model->addAttributeRevisionWhere($query, $revisionId);
 
@@ -523,7 +525,7 @@ abstract class Revisionable extends Model
 
         $dirtyAttributeFields = $oldAttributes->getDirty();
 
-        $attributeFk = $this->getForeignKeyName($this->attributes());
+        $attributeFk = self::getForeignKeyName($this->attributes());
 
         if (
             !$oldAttributes->exists() ||
@@ -604,7 +606,7 @@ abstract class Revisionable extends Model
             /** @var HasMany $relationshipQueryBuilder */
             $relationshipQueryBuilder = call_user_func([ $this, $attributeName ]);
 
-            $fk = $this->getForeignKeyName($relationshipQueryBuilder);
+            $fk = self::getForeignKeyName($relationshipQueryBuilder);
             $child->$fk = $this->id;
 
             // Force relations to reload (in case they exist already)
@@ -663,7 +665,7 @@ abstract class Revisionable extends Model
      * @param $relationship
      * @return string
      */
-    protected function getForeignKeyName($relationship)
+    protected static function getForeignKeyName($relationship)
     {
         if (method_exists($relationship, 'getForeignKeyName')) {
             return $relationship->getForeignKeyName();

@@ -395,6 +395,7 @@ abstract class Revisionable extends Model
         parent::setRelation($relation, $value);
 
         if (
+            $value === null ||
             $value instanceof Model ||
             count($value) == 0
         ) {

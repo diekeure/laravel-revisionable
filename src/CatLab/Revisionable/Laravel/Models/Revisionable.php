@@ -25,7 +25,7 @@ abstract class Revisionable extends Model
     const REV_LATEST = 'latest';
     const REV_PUBLISHED = 'published';
 
-    const EAGER_LOAD_CHILDREN_PREFIX = 'revisionedChildren:';
+    const EAGER_LOAD_CHILDREN_PREFIX = 'revisionedChildren|';
 
     /**
      * @var string[]

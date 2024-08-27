@@ -253,7 +253,7 @@ abstract class Revisionable extends Model
                  * Is this a "child property" eager loading?
                  * Return a closure that only returns the valid children.
                  */
-                if (starts_with($k, self::EAGER_LOAD_CHILDREN_PREFIX)) {
+                if (str_starts_with($k, self::EAGER_LOAD_CHILDREN_PREFIX)) {
                     $property = Str::substr($k, Str::length(self::EAGER_LOAD_CHILDREN_PREFIX));
                     $eagerLoads[$property] = $related->eagerLoadChildren($property, $revisionId, $v);
                 } else {
